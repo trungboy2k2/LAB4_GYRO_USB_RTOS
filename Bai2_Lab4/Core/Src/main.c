@@ -26,6 +26,7 @@
 #include "stm32f429i_discovery_io.h"
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -45,6 +46,13 @@
 
 /* USER CODE END PM */
 uint8_t Buffer[200];
+float gyrRaw[3];
+float rate_gyr_x;
+float rate_gyr_y;
+float rate_gyr_z;
+int startInt;
+#define DT 0.02         // [s/loop] loop period. 20ms
+#define G_GAIN 0.07     // [deg/s/LSB]
 /* Private variables ---------------------------------------------------------*/
 /* Definitions for Task01 */
 osThreadId_t Task01Handle;
@@ -66,12 +74,11 @@ const osMessageQueueAttr_t myQueue01_attributes = {
   .name = "myQueue01"
 };
 /* USER CODE BEGIN PV */
-
 typedef struct
 {
-  float x_ang_rate;
-  float y_ang_rate;
-  float z_ang_rate;
+  float gyroXangle;
+  float gyroYangle;
+  float gyroZangle;
 } GYRO_DATA_T;
 /* USER CODE END PV */
 
@@ -104,7 +111,6 @@ int main(void)
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
   /* USER CODE BEGIN Init */
   /*LCD init*/
   BSP_LCD_Init();
@@ -253,15 +259,17 @@ void GYRO_Task(void)
   }
   /* Infinite loop */
   GYRO_DATA_T gyro_data;
-  float pfData[4];
   osThreadFlagsWait(0x1, osFlagsWaitAny, osWaitForever); //Wait for signal. Check cmsis_os.c for API name.
   for (;;)
   {
     //BSP_ACCELERO_GetXYZ((float *)&gyro_data);
-    L3GD20_ReadXYZAngRate(pfData);
-    gyro_data.x_ang_rate = pfData[0];
-    gyro_data.y_ang_rate = pfData[1];
-    gyro_data.z_ang_rate = pfData[2];
+	BSP_GYRO_GetXYZ(gyrRaw);
+	rate_gyr_x = (float) gyrRaw[0]  * G_GAIN;
+	rate_gyr_y = (float) gyrRaw[1]  * G_GAIN;
+	rate_gyr_z = (float) gyrRaw[2]  * G_GAIN;
+	gyro_data.gyroXangle+=rate_gyr_x*DT;
+	gyro_data.gyroYangle+=rate_gyr_y*DT;
+	gyro_data.gyroZangle+=rate_gyr_z*DT;
     /*Send gyroscope data to USB*/
     //GYRO_DATA_T *gyro_tx;
     /*do
@@ -274,25 +282,25 @@ void GYRO_Task(void)
     osMessageQueuePut(myQueue01Handle, &gyro_data, 0U, 0U);//Put data into Message queue. Check cmsis_os.c for API name
     BSP_LCD_Clear(LCD_COLOR_BLUE);
 
-    if (gyro_data.x_ang_rate<0&&gyro_data.y_ang_rate<0)
+    if (gyro_data.gyroXangle<0&&gyro_data.gyroYangle<0)
     {
     	BSP_LCD_FillTriangle(90,120,150,240,270,240); //Top
     	BSP_LCD_FillTriangle(60, 30, 60, 120, 150, 180); //Left
     	osDelay(1000);
     }
-    if (gyro_data.x_ang_rate<0&&gyro_data.y_ang_rate>0)
+    if (gyro_data.gyroXangle<0&&gyro_data.gyroYangle>0)
     {
     	BSP_LCD_FillTriangle(90,120,150,240,270,240); //Top
     	BSP_LCD_FillTriangle(210,240,210,120,150,180); //Right
     	osDelay(1000);
     }
-    if (gyro_data.x_ang_rate>0&&gyro_data.y_ang_rate<0)
+    if (gyro_data.gyroXangle>0&&gyro_data.gyroYangle<0)
     {
     	BSP_LCD_FillTriangle(90, 120, 150, 60, 30, 60); //Bot
     	BSP_LCD_FillTriangle(60, 30, 60, 120, 150, 180); //Left
     	osDelay(1000);
     }
-    if (gyro_data.x_ang_rate>0&&gyro_data.y_ang_rate>0)
+    if (gyro_data.gyroXangle>0&&gyro_data.gyroYangle>0)
     {
     	BSP_LCD_FillTriangle(90, 120, 150, 60, 30, 60); //Bot
     	BSP_LCD_FillTriangle(210,240,210,120,150,180); //Right
@@ -311,8 +319,8 @@ void USB_Task(void)
   /* Infinite loop */
   for (;;)
   {
-	osMessageQueueGet(myQueue01Handle, (float *)&gyro_data, NULL, 0U); //Get queue
-    sprintf(Buffer,"x:%f, y:%f, z:%f \n",gyro_data.x_ang_rate,gyro_data.y_ang_rate,gyro_data.z_ang_rate);
+	osMessageQueueGet(myQueue01Handle, &gyro_data, NULL, 0U); //Get queue
+    sprintf(Buffer,"x:%f, y:%f, z:%f \n",gyro_data.gyroXangle,gyro_data.gyroYangle,gyro_data.gyroZangle);
     CDC_Transmit_HS(Buffer, strlen(Buffer));
     osDelay(1000);
   }
