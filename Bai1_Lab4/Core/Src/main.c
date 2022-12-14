@@ -47,8 +47,16 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-float pfData[4];
+float gyrRaw[3];
 uint8_t Buffer[200];
+float rate_gyr_x;
+float rate_gyr_y;
+float rate_gyr_z;
+float gyroXangle;
+float gyroYangle;
+float gyroZangle;
+#define DT 0.02         // [s/loop] loop period. 20ms
+#define G_GAIN 0.07     // [deg/s/LSB]
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -109,29 +117,35 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  L3GD20_ReadXYZAngRate(pfData);
-	  sprintf(Buffer,"x:%f, y:%f, z:%f \n",pfData[0], pfData[1], pfData[2]);
+	  BSP_GYRO_GetXYZ(gyrRaw);
+	  rate_gyr_x = (float) gyrRaw[0]  * G_GAIN;
+	  rate_gyr_y = (float) gyrRaw[1]  * G_GAIN;
+	  rate_gyr_z = (float) gyrRaw[2]  * G_GAIN;
+	  gyroXangle+=rate_gyr_x*DT;
+	  gyroYangle+=rate_gyr_y*DT;
+	  gyroZangle+=rate_gyr_z*DT;
+	  sprintf(Buffer,"x:%f, y:%f, z:%f \n", gyroXangle, gyroYangle, gyroZangle);
 	  CDC_Transmit_HS(Buffer, strlen(Buffer));
 	  BSP_LCD_Clear(LCD_COLOR_BLUE);
-	  if (pfData[0]<0&&pfData[1]<0)
+	  if (gyroXangle<0&&gyroYangle<0)
 	  {
 		  BSP_LCD_FillTriangle(90,120,150,240,270,240); //Top
 		  BSP_LCD_FillTriangle(60, 30, 60, 120, 150, 180); //Left
 		  HAL_Delay(1000);
 	  }
-	  if (pfData[0]<0&&pfData[1]>0)
+	  if (gyroXangle<0&&gyroYangle>0)
 	  {
 		  BSP_LCD_FillTriangle(90,120,150,240,270,240); //Top
 		  BSP_LCD_FillTriangle(210,240,210,120,150,180); //Right
 		  HAL_Delay(1000);
 	  }
-	  if (pfData[0]>0&&pfData[1]<0)
+	  if (gyroXangle>0&&gyroYangle<0)
 	  {
 	 	  BSP_LCD_FillTriangle(90, 120, 150, 60, 30, 60); //Bot
 	 	  BSP_LCD_FillTriangle(60, 30, 60, 120, 150, 180); //Left
 	 	  HAL_Delay(1000);
 	  }
-	  if (pfData[0]>0&&pfData[1]>0)
+	  if (gyroXangle&&gyroYangle>0)
 	  {
 		  BSP_LCD_FillTriangle(90, 120, 150, 60, 30, 60); //Bot
 		  BSP_LCD_FillTriangle(210,240,210,120,150,180); //Right
